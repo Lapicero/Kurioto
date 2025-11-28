@@ -134,6 +134,82 @@ Everything is built to maximize clarity, readability, and AI agents best-practic
 
 ---
 
+## 📁 **Project Structure**
+
+```
+Kurioto/
+├── src/kurioto/                 # Main package
+│   ├── __init__.py              # Package exports
+│   ├── agent.py                 # 🤖 Main KuriotoAgent class
+│   ├── cli.py                   # CLI entry point
+│   ├── config.py                # Settings & ChildProfile
+│   ├── logging.py               # Structured logging & tracing
+│   ├── memory.py                # Episodic & semantic memory
+│   ├── safety.py                # Safety evaluation & filtering
+│   └── tools/                   # Agent tools
+│       ├── base.py              # BaseTool interface
+│       ├── search.py            # Educational search
+│       ├── music.py             # Music playback (mock)
+│       ├── parent_dashboard.py  # Parent oversight
+│       └── image_safety.py      # Image analysis (mock)
+├── tests/                       # Test suite
+│   ├── test_safety.py
+│   └── test_tools.py
+├── examples/
+│   └── demo.py                  # Interactive demo
+├── docs/                        # Documentation & specs
+├── pyproject.toml               # Modern Python packaging
+├── requirements.txt             # Dependencies
+├── requirements-dev.txt         # Dev dependencies
+└── .env.example                 # Environment template
+```
+
+---
+
+## 🚀 **Quick Start**
+
+### Prerequisites
+
+- Python 3.10+
+- (Optional) Google API Key for Gemini integration
+
+### Installation
+
+```bash
+# Clone the repository
+git clone https://github.com/Lapicero/Kurioto.git
+cd Kurioto
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Copy environment file and add your API key
+cp .env.example .env
+# Edit .env and set GOOGLE_API_KEY=your_key_here
+```
+
+### Run the Demo
+
+```bash
+# Run the interactive demo
+python examples/demo.py
+
+# Or start the CLI
+python -m kurioto.cli
+```
+
+### Run Tests
+
+```bash
+# Install dev dependencies
+pip install -r requirements-dev.txt
+
+# Run tests
+pytest tests/
+```
+
+---
+
 ## **Work in Progress**
 
 1. **Implement a speech pipeline**
