@@ -156,12 +156,3 @@ class SafetyEvaluator:
         if is_output:
             return await self._multi_layer.evaluate_output(text)
         return await self._multi_layer.evaluate(text)
-
-
-# Legacy function for backwards compatibility
-def create_safety_evaluator(
-    child_profile: ChildProfile,
-    **kwargs,
-) -> SafetyEvaluator:
-    """Create a safety evaluator with default settings."""
-    return SafetyEvaluator(child_profile, **kwargs)
