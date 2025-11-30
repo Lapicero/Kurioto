@@ -9,10 +9,12 @@ from __future__ import annotations
 
 from typing import Any
 
+from kurioto.agents.orchestrator import OrchestratorAgent
+from kurioto.agents.safety_agent import SafetyAgent
 from kurioto.config import ChildProfile, Settings, get_settings
 from kurioto.logging import TraceContext, get_logger
 from kurioto.memory import MemoryManager
-from kurioto.safety import SafetyAction, SafetyEvaluator
+from kurioto.safety import SafetyAction
 from kurioto.tools import (
     ImageSafetyTool,
     MusicTool,
@@ -54,7 +56,11 @@ class KuriotoAgent:
             child_id=child_profile.child_id,
             max_episodic_entries=self.settings.max_memory_entries,
         )
-        self.safety = SafetyEvaluator(child_profile)
+        # Week 2: SafetyAgent wrapping multi-layer safety + LLM semantic checks
+        self.safety_agent = SafetyAgent(child_profile)
+
+        # Week 1 addition: orchestrator for intent classification & routing
+        self.orchestrator = OrchestratorAgent(child_profile)
 
         # Initialize tools
         self.tools = {
@@ -98,8 +104,8 @@ class KuriotoAgent:
             self.memory.add_turn("user", user_input)
             trace.log_event("input_received", data={"length": len(user_input)})
 
-            # Step 1: Safety check on input
-            safety_result = self.safety.evaluate_input(user_input)
+            # Step 1: Safety check on input (pre-orchestration)
+            safety_result = await self.safety_agent.pre_check(user_input)
             trace.log_safety_event(
                 action=safety_result.action.value,
                 reason=safety_result.reason,
@@ -120,16 +126,24 @@ class KuriotoAgent:
                 self.memory.add_turn("assistant", response)
                 return response
 
-            # Step 2: Plan response (determine if tools needed)
-            trace.log_reasoning_step(1, "Analyzing query type and required actions")
-            plan = self._plan_response(user_input)
+            # If we should warn the parent but still proceed, log alert now
+            if safety_result.action == SafetyAction.WARN_PARENT:
+                await self._log_safety_event(user_input, safety_result)
 
-            # Step 3: Execute plan (may involve tool calls)
-            trace.log_reasoning_step(2, f"Executing plan: {plan['action']}")
-            response = await self._execute_plan(plan, user_input, trace)
+            # Step 2: Always use orchestrator routing (heuristics if LLM unavailable)
+            trace.log_reasoning_step(1, "Routing via orchestrator")
+            try:
+                response = await self.orchestrator.route(
+                    user_input,
+                    agent_core=self,
+                    context={"trace": trace},
+                )
+            except Exception as e:  # Extremely rare; provide minimal fallback
+                logger.error("orchestrator_fatal", error=str(e))
+                response = self._generate_conversational_response(user_input)
 
             # Step 4: Safety check on output
-            output_safety = self.safety.evaluate_output(response)
+            output_safety = await self.safety_agent.post_check(response)
             if output_safety.action != SafetyAction.ALLOW:
                 trace.log_safety_event(
                     action="output_filtered",
@@ -146,36 +160,11 @@ class KuriotoAgent:
 
             return response
 
-    def _plan_response(self, user_input: str) -> dict[str, Any]:
-        """
-        Simple planner to determine how to respond.
-
-        In a full implementation, this would use the LLM for planning.
-        For now, we use keyword-based routing.
-        """
-        input_lower = user_input.lower()
-
-        # Music requests
-        if any(word in input_lower for word in ["play", "music", "song", "sing"]):
-            return {"action": "use_tool", "tool": "play_music", "mood": "fun"}
-
-        # Educational questions
-        question_words = ["why", "what", "how", "when", "where", "who", "tell me about"]
-        if any(word in input_lower for word in question_words):
-            return {
-                "action": "use_tool",
-                "tool": "search_educational",
-                "query": user_input,
-            }
-
-        # Default: conversational response
-        return {"action": "converse", "query": user_input}
-
     async def _execute_plan(
         self,
         plan: dict[str, Any],
         user_input: str,
-        trace: TraceContext,
+        trace: TraceContext | None,
     ) -> str:
         """Execute the planned action and generate a response."""
         action = plan.get("action")
@@ -197,12 +186,13 @@ class KuriotoAgent:
 
                 # Execute tool
                 result = await tool.execute(**tool_args)
-                trace.log_tool_call(
-                    tool_name=tool_name,
-                    inputs=tool_args,
-                    outputs=result.data if result.success else None,
-                    error=result.error,
-                )
+                if trace is not None:
+                    trace.log_tool_call(
+                        tool_name=tool_name,
+                        inputs=tool_args,
+                        outputs=result.data if result.success else None,
+                        error=result.error,
+                    )
 
                 if result.success:
                     return self._format_tool_response(tool_name, result.data)
@@ -239,7 +229,7 @@ class KuriotoAgent:
         # - context: recent conversation history for coherent multi-turn dialogue
         # - guidelines: age-appropriate language rules for the system prompt
         _ = self.memory.get_conversation_context(5)  # noqa: F841
-        _ = self.safety.get_age_appropriate_guidelines()  # noqa: F841
+        _ = self.safety_agent.get_age_appropriate_guidelines()  # noqa: F841
 
         # For this mock implementation, return a friendly response
         greetings = ["hi", "hello", "hey"]
@@ -295,6 +285,34 @@ class KuriotoAgent:
             },
         )
 
+        # Generate and log a structured parent alert when severity/action warrants
+        try:
+            from kurioto.safety.base import SafetyAction as _SA
+            from kurioto.safety.base import SafetySeverity as _SS
+
+            should_alert = safety_result.action in {
+                _SA.BLOCK,
+                _SA.WARN_PARENT,
+                _SA.REDIRECT,
+            } or safety_result.severity in {_SS.MEDIUM, _SS.HIGH, _SS.CRITICAL}
+            if should_alert:
+                alert = await self.safety_agent.generate_parent_alert(
+                    user_input, safety_result
+                )
+                await dashboard.execute(
+                    action="log_event",
+                    event_type="parent_alert",
+                    event_data={
+                        "child_id": self.child_profile.child_id,
+                        "subject": alert.subject,
+                        "message": alert.message,
+                        "urgency": alert.urgency,
+                        "follow_up_recommended": alert.follow_up_recommended,
+                    },
+                )
+        except Exception as e:
+            logger.warning("parent_alert_generation_failed", error=str(e))
+
         # Also log to memory for tracking
         self.memory.log_safety_event(
             event_type="blocked_request",
@@ -322,7 +340,7 @@ class KuriotoAgent:
         This prompt instructs the model on how to interact with children
         based on their age group and safety requirements.
         """
-        guidelines = self.safety.get_age_appropriate_guidelines()
+        guidelines = self.safety_agent.get_age_appropriate_guidelines()
         interests = ", ".join(self.child_profile.interests) or "various topics"
 
         return f"""You are Kurioto, a friendly and safe AI companion for children.

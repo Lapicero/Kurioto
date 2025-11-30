@@ -105,7 +105,7 @@ class Settings(BaseModel):
 
     # Agent settings
     model_name: str = Field(
-        default="gemini-2.0-flash", description="Default Gemini model to use"
+        default="gemini-2.5-flash", description="Default Gemini model to use"
     )
     max_reasoning_steps: int = Field(
         default=10, description="Maximum steps in agent reasoning loop"
