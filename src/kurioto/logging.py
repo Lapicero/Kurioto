@@ -7,7 +7,7 @@ tool calls, and safety events.
 
 from __future__ import annotations
 
-import sys
+import logging
 from datetime import datetime
 from typing import Any
 from uuid import uuid4
@@ -15,6 +15,15 @@ from uuid import uuid4
 import structlog
 
 from kurioto.config import get_settings
+
+# Map log level strings to logging module constants
+LOG_LEVELS = {
+    "DEBUG": logging.DEBUG,
+    "INFO": logging.INFO,
+    "WARNING": logging.WARNING,
+    "ERROR": logging.ERROR,
+    "CRITICAL": logging.CRITICAL,
+}
 
 
 def configure_logging() -> None:
@@ -27,6 +36,9 @@ def configure_logging() -> None:
         log_level = "INFO"
 
     is_dev = getattr(settings, "is_development", True)
+
+    # Get numeric log level
+    numeric_level = LOG_LEVELS.get(log_level.upper(), logging.INFO)
 
     # Configure structlog
     structlog.configure(
@@ -43,9 +55,7 @@ def configure_logging() -> None:
                 else structlog.processors.JSONRenderer()
             ),
         ],
-        wrapper_class=structlog.make_filtering_bound_logger(
-            getattr(structlog, log_level.upper(), structlog.INFO)
-        ),
+        wrapper_class=structlog.make_filtering_bound_logger(numeric_level),
         context_class=dict,
         logger_factory=structlog.PrintLoggerFactory(),
         cache_logger_on_first_use=True,

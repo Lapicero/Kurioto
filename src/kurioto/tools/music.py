@@ -85,11 +85,7 @@ class MusicTool(BaseTool):
             "required": ["mood"],
         }
 
-    async def execute(
-        self,
-        mood: str = "fun",
-        action: str = "play",
-    ) -> ToolResult:
+    async def execute(self, **kwargs) -> ToolResult:
         """
         Execute music playback command.
 
@@ -100,6 +96,9 @@ class MusicTool(BaseTool):
         Returns:
             ToolResult with playback status
         """
+        mood: str = kwargs.get("mood", "fun")
+        action: str = kwargs.get("action", "play")
+
         logger.info("music_execute", mood=mood, action=action)
 
         if action == "stop":

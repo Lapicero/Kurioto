@@ -138,30 +138,38 @@ Everything is built to maximize clarity, readability, and AI agents best-practic
 
 ```
 Kurioto/
-├── src/kurioto/                 # Main package
-│   ├── __init__.py              # Package exports
-│   ├── agent.py                 # 🤖 Main KuriotoAgent class
-│   ├── cli.py                   # CLI entry point
-│   ├── config.py                # Settings & ChildProfile
-│   ├── logging.py               # Structured logging & tracing
-│   ├── memory.py                # Episodic & semantic memory
-│   ├── safety.py                # Safety evaluation & filtering
-│   └── tools/                   # Agent tools
-│       ├── base.py              # BaseTool interface
-│       ├── search.py            # Educational search
-│       ├── music.py             # Music playback (mock)
-│       ├── parent_dashboard.py  # Parent oversight
-│       └── image_safety.py      # Image analysis (mock)
-├── tests/                       # Test suite
+├── src/kurioto/                   # Main package
+│   ├── __init__.py                # Package exports
+│   ├── agent.py                   # 🤖 Main KuriotoAgent class
+│   ├── cli.py                     # CLI entry point
+│   ├── config.py                  # Settings & ChildProfile
+│   ├── logging.py                 # Structured logging & tracing
+│   ├── memory.py                  # Episodic & semantic memory
+│   ├── safety/                    # Multi-layer safety system
+│   │   ├── base.py                # Core datatypes & protocol
+│   │   ├── multi_layer.py         # Orchestrator across classifiers
+│   │   ├── evaluator.py           # Backwards-compatible facade
+│   │   └── classifiers/           # Individual safety classifiers
+│   │       ├── regex_classifier.py
+│   │       ├── gemini_classifier.py
+│   │       └── perspective_classifier.py
+│   └── tools/                     # Agent tools
+│       ├── base.py                # BaseTool interface
+│       ├── search.py              # Educational search
+│       ├── music.py               # Music playback (mock)
+│       ├── parent_dashboard.py    # Parent oversight
+│       └── image_safety.py        # Image analysis (mock)
+├── tests/                         # Test suite
 │   ├── test_safety.py
+│   ├── test_agent.py
 │   └── test_tools.py
 ├── examples/
-│   └── demo.py                  # Interactive demo
-├── docs/                        # Documentation & specs
-├── pyproject.toml               # Modern Python packaging
-├── requirements.txt             # Dependencies
-├── requirements-dev.txt         # Dev dependencies
-└── .env.example                 # Environment template
+│   └── demo.py                    # Interactive demo
+├── docs/                          # Documentation & specs
+├── pyproject.toml                 # Modern Python packaging (pinned versions)
+├── constraints.txt                # Resolver constraint pins
+├── requirements.lock              # Frozen, reproducible environment
+└── .env.example                   # Environment template
 ```
 
 ---
@@ -175,17 +183,30 @@ Kurioto/
 
 ### Installation
 
+Reproducible (recommended) using the lock file:
+
 ```bash
-# Clone the repository
 git clone https://github.com/Lapicero/Kurioto.git
 cd Kurioto
+python -m venv .venv
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
+pip install -r requirements.lock
+cp .env.example .env  # then set GOOGLE_API_KEY=your_key_here
+```
 
-# Install dependencies
-pip install -r requirements.txt
+Or editable development install (uses pinned versions + constraints):
 
-# Copy environment file and add your API key
-cp .env.example .env
-# Edit .env and set GOOGLE_API_KEY=your_key_here
+```bash
+python -m venv .venv
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
+pip install -e .[dev] -c constraints.txt
+```
+
+To update the lock file after intentional version upgrades:
+
+```bash
+pip install -e .[dev] -c constraints.txt --upgrade
+pip freeze > requirements.lock
 ```
 
 ### Run the Demo
@@ -201,11 +222,13 @@ python -m kurioto.cli
 ### Run Tests
 
 ```bash
-# Install dev dependencies
-pip install -r requirements-dev.txt
-
-# Run tests
 pytest tests/
+```
+
+If you installed via lock file and later add dev tools, run:
+
+```bash
+pip install -e .[dev] -c constraints.txt
 ```
 
 ---

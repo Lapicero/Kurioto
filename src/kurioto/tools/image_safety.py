@@ -54,16 +54,19 @@ class ImageSafetyTool(BaseTool):
             "required": ["image_data"],
         }
 
-    async def execute(
-        self,
-        image_data: str,
-        check_type: str = "both",
-    ) -> ToolResult:
+    async def execute(self, **kwargs) -> ToolResult:
         """
         Analyze image for safety and/or describe its contents.
 
+        Args:
+            image_data: Base64-encoded image or image URL
+            check_type: Type of analysis ("safety", "describe", or "both")
+
         This is a mock implementation that returns simulated results.
         """
+        image_data: str = kwargs.get("image_data", "")
+        check_type: str = kwargs.get("check_type", "both")
+
         logger.info("image_safety_execute", check_type=check_type)
 
         # Mock safety analysis

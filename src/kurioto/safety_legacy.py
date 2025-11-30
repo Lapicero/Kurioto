@@ -10,7 +10,6 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any
 
 from kurioto.config import AgeGroup, ChildProfile
 from kurioto.logging import get_logger
@@ -150,13 +149,14 @@ class SafetyEvaluator:
         # Check for blocked topics
         for topic in self.BLOCKED_TOPICS:
             if topic in input_lower:
-                # Check if it's in allowed topics (parent override)
-                if topic not in self.profile.blocked_topics:
-                    if any(
-                        allowed in input_lower
-                        for allowed in self.profile.allowed_topics
-                    ):
-                        continue
+                # Check if parent has explicitly allowed this topic (override)
+                # But never allow override if parent also explicitly blocked it
+                if topic in self.profile.blocked_topics:
+                    # Parent explicitly blocked - no override possible
+                    pass
+                elif topic in self.profile.allowed_topics:
+                    # Parent explicitly allowed this globally-blocked topic
+                    continue
 
                 redirect = self._find_redirect(input_lower)
                 return SafetyResult(

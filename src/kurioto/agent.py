@@ -235,9 +235,11 @@ class KuriotoAgent:
         In production, this would call the Gemini model with appropriate
         system prompts for age-appropriate conversation.
         """
-        # Get conversation context
-        context = self.memory.get_conversation_context(5)
-        guidelines = self.safety.get_age_appropriate_guidelines()
+        # TODO: These will be passed to the LLM when Gemini integration is added
+        # - context: recent conversation history for coherent multi-turn dialogue
+        # - guidelines: age-appropriate language rules for the system prompt
+        _ = self.memory.get_conversation_context(5)  # noqa: F841
+        _ = self.safety.get_age_appropriate_guidelines()  # noqa: F841
 
         # For this mock implementation, return a friendly response
         greetings = ["hi", "hello", "hey"]

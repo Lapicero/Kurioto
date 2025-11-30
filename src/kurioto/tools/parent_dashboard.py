@@ -68,13 +68,12 @@ class ParentDashboardTool(BaseTool):
             "required": ["action"],
         }
 
-    async def execute(
-        self,
-        action: str,
-        event_type: str | None = None,
-        event_data: dict[str, Any] | None = None,
-    ) -> ToolResult:
+    async def execute(self, **kwargs) -> ToolResult:
         """Execute parent dashboard action."""
+        action: str = kwargs.get("action", "")
+        event_type: str | None = kwargs.get("event_type")
+        event_data: dict[str, Any] | None = kwargs.get("event_data")
+
         logger.info("parent_dashboard_execute", action=action)
 
         if action == "log_event":

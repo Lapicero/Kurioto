@@ -90,11 +90,7 @@ class SearchTool(BaseTool):
             "required": ["query"],
         }
 
-    async def execute(
-        self,
-        query: str,
-        detail_level: str = "simple",
-    ) -> ToolResult:
+    async def execute(self, **kwargs) -> ToolResult:
         """
         Search for educational content on the given topic.
 
@@ -105,6 +101,9 @@ class SearchTool(BaseTool):
         Returns:
             ToolResult with educational content
         """
+        query: str = kwargs.get("query", "")
+        detail_level: str = kwargs.get("detail_level", "simple")
+
         logger.info("search_execute", query=query, detail_level=detail_level)
 
         query_lower = query.lower()

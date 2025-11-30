@@ -9,8 +9,6 @@ from __future__ import annotations
 import os
 from enum import Enum
 from functools import lru_cache
-from pathlib import Path
-from typing import Optional
 
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field
@@ -86,9 +84,13 @@ class Settings(BaseModel):
         default_factory=lambda: os.getenv("GOOGLE_API_KEY", ""),
         description="Google AI / Gemini API key",
     )
-    google_cloud_project: Optional[str] = Field(
+    google_cloud_project: None | str = Field(
         default_factory=lambda: os.getenv("GOOGLE_CLOUD_PROJECT"),
         description="Google Cloud project ID for Vertex AI",
+    )
+    perspective_api_key: str = Field(
+        default_factory=lambda: os.getenv("PERSPECTIVE_API_KEY", ""),
+        description="Google Perspective API key for toxicity detection",
     )
 
     # Runtime settings
