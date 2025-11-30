@@ -7,6 +7,8 @@ the new multi-layer safety architecture internally.
 
 from __future__ import annotations
 
+import asyncio
+import concurrent.futures
 from typing import Any
 
 from kurioto.config import AgeGroup, ChildProfile
@@ -78,12 +80,10 @@ class SafetyEvaluator:
         This is the synchronous interface for backwards compatibility.
         Internally runs the async multi-layer evaluation.
         """
-        import asyncio
 
         try:
-            loop = asyncio.get_running_loop()
+            # loop = asyncio.get_running_loop()
             # Already in an async context, create a new thread
-            import concurrent.futures
 
             with concurrent.futures.ThreadPoolExecutor() as executor:
                 future = executor.submit(
@@ -111,13 +111,10 @@ class SafetyEvaluator:
 
         Synchronous interface for backwards compatibility.
         """
-        import asyncio
 
         try:
-            loop = asyncio.get_running_loop()
+            # loop = asyncio.get_running_loop()
             # Already in an async context, create a new thread
-            import concurrent.futures
-
             with concurrent.futures.ThreadPoolExecutor() as executor:
                 future = executor.submit(
                     asyncio.run, self._multi_layer.evaluate_output(response)

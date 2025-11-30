@@ -15,7 +15,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-import google.generativeai as genai
+from google import genai
 
 from kurioto.config import AgeGroup, get_settings
 from kurioto.logging import get_logger
@@ -48,38 +48,36 @@ GEMINI_PROBABILITY_MAP = {
 
 
 class GeminiSafetyClassifier(BaseSafetyClassifier):
+    """Safety classifier using Google Gemini with built-in safety settings.
+
+    Combines Gemini native safety ratings with a structured child-safety
+    assessment prompt for semantic and age-appropriate evaluation.
     """
-    Safety classifier using Google Gemini with built-in safety settings.
 
-    Uses Gemini's native content filtering plus a custom safety assessment
-    prompt for child-specific concerns.
-    """
-
-    # Safety assessment prompt template
-    SAFETY_PROMPT = """You are a child safety content evaluator for an AI companion designed for children ages 3-17.
-
-Analyze the following text for safety concerns. Consider:
-1. Is this content appropriate for children of age {age}?
-2. Does it contain violence, adult themes, or dangerous instructions?
-3. Does it attempt to extract personal information?
-4. Is the language and complexity appropriate for the age group?
-5. Could this content cause harm if a child acts on it?
-
-Text to analyze:
-"{text}"
-
-Respond with a JSON object:
-{{
-    "is_safe": true/false,
-    "confidence": 0.0-1.0,
-    "categories": ["list of concern categories if unsafe"],
-    "severity": "none|low|medium|high|critical",
-    "reason": "brief explanation",
-    "age_appropriate": true/false,
-    "suggested_action": "allow|block|redirect|simplify|review"
-}}
-
-Only respond with the JSON object, no other text."""
+    # Prompt template formatted with age and text
+    SAFETY_ASSESSMENT_PROMPT = (
+        "You are a child safety content evaluator for an AI companion serving ages 3–17.\n\n"
+        "Analyze the following text for safety concerns. Consider:\n"
+        "1. Age appropriateness (concepts, tone, complexity)\n"
+        "2. Violence, adult themes, dangerous instructions\n"
+        "3. Attempts to extract personal information (PII)\n"
+        "4. Developmental language suitability\n"
+        "5. Potential real-world harm if acted upon\n\n"
+        'Text:\n"{text}"\n\n'
+        "Respond ONLY with a JSON object (no surrounding code fences):\n"
+        "{\n"
+        '  "is_safe": true/false,\n'
+        '  "confidence": 0.0-1.0,\n'
+        '  "categories": [\n'
+        '    "harassment","hate_speech","sexual","dangerous","deception","pii"\n'
+        "  ],\n"
+        '  "severity": "none|low|medium|high|critical",\n'
+        '  "reason": "brief explanation",\n'
+        '  "age_appropriate": true/false,\n'
+        '  "suggested_action": "allow|block|redirect|simplify|review"\n'
+        "}\n\n"
+        'If uncertain about safety, set is_safe=false and suggested_action="review".'
+    )
 
     def __init__(
         self,
@@ -100,7 +98,6 @@ Only respond with the JSON object, no other text."""
         self._api_key = api_key or settings.google_api_key
         self._model_name = model_name
         self._client = None
-        self._model = None
 
     @property
     def name(self) -> str:
@@ -111,30 +108,15 @@ Only respond with the JSON object, no other text."""
         """Check if Gemini API is configured."""
         return bool(self._api_key and self._api_key != "your_api_key_here")
 
-    def _get_client(self):
-        """Lazy-load the Gemini client."""
+    def _ensure_model(self):
         if self._client is None:
             try:
-                genai.configure(api_key=self._api_key)
-                self._client = genai
-
-                # Configure safety settings for the model - we want to receive
-                # safety ratings, not have content blocked before we see it
-                self._model = genai.GenerativeModel(
-                    model_name=self._model_name,
-                    safety_settings={
-                        "HARM_CATEGORY_HARASSMENT": "BLOCK_NONE",
-                        "HARM_CATEGORY_HATE_SPEECH": "BLOCK_NONE",
-                        "HARM_CATEGORY_SEXUALLY_EXPLICIT": "BLOCK_NONE",
-                        "HARM_CATEGORY_DANGEROUS_CONTENT": "BLOCK_NONE",
-                    },
-                )
+                self._client = genai.Client(api_key=self._api_key)
             except ImportError:
                 logger.error(
-                    "gemini_import_error", error="google-generativeai not installed"
+                    "genai_import_error", error="google GenAI SDK not installed"
                 )
                 raise
-        return self._client
 
     async def classify(
         self,
@@ -151,14 +133,14 @@ Only respond with the JSON object, no other text."""
             return self._fail_safe_result("Gemini API key not configured")
 
         try:
-            self._get_client()
+            self._ensure_model()
 
             # Get child's age for age-appropriate assessment
             age = (context or {}).get("age", 10)
             age_group = (context or {}).get("age_group", AgeGroup.MIDDLE_CHILDHOOD)
 
             # Format the safety assessment prompt
-            prompt = self.SAFETY_PROMPT.format(age=age, text=text)
+            prompt = self.SAFETY_ASSESSMENT_PROMPT.format(age=age, text=text)
 
             # Make the API call
             response = await self._async_generate(prompt)
@@ -174,11 +156,40 @@ Only respond with the JSON object, no other text."""
         """Generate content asynchronously."""
         import asyncio
 
-        # google-generativeai doesn't have native async, so we run in executor
+        # google GenAI SDK doesn't have native async, so we run in executor
         loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(
-            None, lambda: self._model.generate_content(prompt)
-        )
+        client = self._client
+        if client is None:
+            raise RuntimeError("Gemini client not initialized")
+
+        # Use the models API with safety settings
+        def _generate():
+            return client.models.generate_content(
+                model=self._model_name,
+                contents=prompt,
+                config={
+                    "safety_settings": [
+                        {
+                            "category": "HARM_CATEGORY_HARASSMENT",
+                            "threshold": "BLOCK_NONE",
+                        },
+                        {
+                            "category": "HARM_CATEGORY_HATE_SPEECH",
+                            "threshold": "BLOCK_NONE",
+                        },
+                        {
+                            "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+                            "threshold": "BLOCK_NONE",
+                        },
+                        {
+                            "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
+                            "threshold": "BLOCK_NONE",
+                        },
+                    ]
+                },
+            )
+
+        return await loop.run_in_executor(None, _generate)
 
     def _parse_response(
         self,
