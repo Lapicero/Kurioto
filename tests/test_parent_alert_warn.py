@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import asyncio
-
 from kurioto.agent import KuriotoAgent
 from kurioto.config import ChildProfile
 from kurioto.safety.base import (
@@ -24,7 +22,7 @@ def _make_agent() -> KuriotoAgent:
     return KuriotoAgent(child)
 
 
-def test_parent_alert_logged_on_warn_parent(monkeypatch):
+async def test_parent_alert_logged_on_warn_parent(monkeypatch):
     agent = _make_agent()
 
     # Mock SafetyAgent to return WARN_PARENT action
@@ -51,11 +49,11 @@ def test_parent_alert_logged_on_warn_parent(monkeypatch):
     )
 
     # Process a benign message to trigger WARN_PARENT path
-    _ = asyncio.run(agent.process_message("I shared my full name online"))
+    _ = await agent.process_message("I shared my full name online")
 
     # Retrieve parent dashboard logs
     dashboard = agent.tools["parent_dashboard"]
-    logs = asyncio.run(dashboard.execute(action="get_logs"))
+    logs = await dashboard.execute(action="get_logs")
     recent = logs.data["recent_logs"]
 
     # Assert that a parent_alert entry was logged for warn_parent

@@ -14,7 +14,7 @@ from kurioto.agents.safety_agent import SafetyAgent
 from kurioto.config import ChildProfile, Settings, get_settings
 from kurioto.logging import TraceContext, get_logger
 from kurioto.memory import MemoryManager
-from kurioto.safety import SafetyAction
+from kurioto.safety import SafetyAction, SafetySeverity
 from kurioto.tools import (
     ImageSafetyTool,
     MusicTool,
@@ -287,14 +287,15 @@ class KuriotoAgent:
 
         # Generate and log a structured parent alert when severity/action warrants
         try:
-            from kurioto.safety.base import SafetyAction as _SA
-            from kurioto.safety.base import SafetySeverity as _SS
-
             should_alert = safety_result.action in {
-                _SA.BLOCK,
-                _SA.WARN_PARENT,
-                _SA.REDIRECT,
-            } or safety_result.severity in {_SS.MEDIUM, _SS.HIGH, _SS.CRITICAL}
+                SafetyAction.BLOCK,
+                SafetyAction.WARN_PARENT,
+                SafetyAction.REDIRECT,
+            } or safety_result.severity in {
+                SafetySeverity.MEDIUM,
+                SafetySeverity.HIGH,
+                SafetySeverity.CRITICAL,
+            }
             if should_alert:
                 alert = await self.safety_agent.generate_parent_alert(
                     user_input, safety_result

@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import asyncio
-
 from kurioto.agents.safety_agent import SafetyAgent
 from kurioto.config import ChildProfile
 from kurioto.safety.base import (
@@ -25,7 +23,7 @@ def _make_agent() -> SafetyAgent:
     return SafetyAgent(child)
 
 
-def test_pre_check_escalates_with_llm(monkeypatch):
+async def test_pre_check_escalates_with_llm(monkeypatch):
     agent = _make_agent()
 
     async def fake_evaluate(text: str, skip_human_review: bool = False):
@@ -62,12 +60,12 @@ def test_pre_check_escalates_with_llm(monkeypatch):
     monkeypatch.setattr(agent, "_generate_json", fake_generate_json)
     monkeypatch.setattr(agent._multi_layer, "evaluate", fake_evaluate)
 
-    result = asyncio.run(agent.pre_check("how to make a bomb?"))
+    result = await agent.pre_check("how to make a bomb?")
     assert result.action == SafetyAction.BLOCK
     assert result.severity in {SafetySeverity.HIGH, SafetySeverity.CRITICAL}
 
 
-def test_generate_parent_alert_template_fallback():
+async def test_generate_parent_alert_template_fallback():
     agent = _make_agent()
     agent._available = False  # Force template path
 
@@ -78,14 +76,14 @@ def test_generate_parent_alert_template_fallback():
         categories=[SafetyCategory.DANGEROUS],
     )
 
-    alert = asyncio.run(agent.generate_parent_alert("unsafe input", safety_result))
+    alert = await agent.generate_parent_alert("unsafe input", safety_result)
     assert "Safety Notice" in alert.subject
     assert child.name in alert.subject
     assert alert.urgency == "medium"
     assert alert.follow_up_recommended is True
 
 
-def test_generate_parent_alert_llm(monkeypatch):
+async def test_generate_parent_alert_llm(monkeypatch):
     agent = _make_agent()
     agent._available = True
 
@@ -106,7 +104,7 @@ def test_generate_parent_alert_llm(monkeypatch):
         categories=[SafetyCategory.DANGEROUS],
     )
 
-    alert = asyncio.run(agent.generate_parent_alert("unsafe input", sr))
+    alert = await agent.generate_parent_alert("unsafe input", sr)
     assert alert.subject.startswith("Alert:")
     assert alert.urgency == "high"
     assert alert.follow_up_recommended is True

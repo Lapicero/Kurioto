@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import os
 
 import pytest
@@ -22,7 +21,7 @@ child = ChildProfile(
     not os.getenv("GOOGLE_API_KEY"),
     reason="GOOGLE_API_KEY not set; skipping real LLM integration test",
 )
-def test_classify_intent_with_real_llm(monkeypatch: pytest.MonkeyPatch):
+async def test_classify_intent_with_real_llm(monkeypatch: pytest.MonkeyPatch):
     # Force LLM path to ensure we exercise the real API
     monkeypatch.setenv("KURIOTO_FORCE_LLM", "true")
 
@@ -36,7 +35,7 @@ def test_classify_intent_with_real_llm(monkeypatch: pytest.MonkeyPatch):
 
     message = "Why do stars twinkle at night?"
     try:
-        intent = asyncio.run(agent.orchestrator.classify_intent(message))
+        intent = await agent.orchestrator.classify_intent(message)
     except Exception as e:  # Gracefully handle quota/rate-limit issues in CI/dev
         msg = str(e).lower()
         if (

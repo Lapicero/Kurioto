@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import asyncio
-
 from kurioto.agent import KuriotoAgent
 from kurioto.config import ChildProfile
 from kurioto.safety.base import (
@@ -24,7 +22,7 @@ def _make_agent() -> KuriotoAgent:
     return KuriotoAgent(child)
 
 
-def test_parent_alert_logged_on_redirect(monkeypatch):
+async def test_parent_alert_logged_on_redirect(monkeypatch):
     """Test that parent alerts are logged when content is redirected."""
     agent = _make_agent()
 
@@ -52,11 +50,11 @@ def test_parent_alert_logged_on_redirect(monkeypatch):
     )
 
     # Process a message that triggers REDIRECT
-    _ = asyncio.run(agent.process_message("tell me about adult topics"))
+    _ = await agent.process_message("tell me about adult topics")
 
     # Retrieve parent dashboard logs
     dashboard = agent.tools["parent_dashboard"]
-    logs = asyncio.run(dashboard.execute(action="get_logs"))
+    logs = await dashboard.execute(action="get_logs")
     recent = logs.data["recent_logs"]
 
     # Assert that a parent_alert entry was logged for redirect

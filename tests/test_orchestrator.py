@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import asyncio
-
 from kurioto.agent import KuriotoAgent
 from kurioto.config import ChildProfile
 
@@ -32,28 +30,24 @@ async def _route_with_mock(agent: KuriotoAgent, message: str, mock_json: dict):
     return await orch.route(message, agent_core=agent, context={})
 
 
-def test_orchestrator_educational_route():
+async def test_orchestrator_educational_route():
     agent = _make_agent()
     message = "Why do dinosaurs have big tails?"
-    response = asyncio.run(
-        _route_with_mock(
-            agent,
-            message,
-            {"type": "educational", "confidence": 0.9, "reasoning": "question"},
-        )
+    response = await _route_with_mock(
+        agent,
+        message,
+        {"type": "educational", "confidence": 0.9, "reasoning": "question"},
     )
     assert "dinosaurs" in response.lower()
 
 
-def test_orchestrator_action_route():
+async def test_orchestrator_action_route():
     agent = _make_agent()
     message = "Play some music please"
-    response = asyncio.run(
-        _route_with_mock(
-            agent,
-            message,
-            {"type": "action", "confidence": 0.8, "reasoning": "action"},
-        )
+    response = await _route_with_mock(
+        agent,
+        message,
+        {"type": "action", "confidence": 0.8, "reasoning": "action"},
     )
     text = response.lower()
     assert (
@@ -61,27 +55,23 @@ def test_orchestrator_action_route():
     )
 
 
-def test_orchestrator_conversational_route():
+async def test_orchestrator_conversational_route():
     agent = _make_agent()
     message = "Hello"
-    response = asyncio.run(
-        _route_with_mock(
-            agent,
-            message,
-            {"type": "conversational", "confidence": 0.7, "reasoning": "greeting"},
-        )
+    response = await _route_with_mock(
+        agent,
+        message,
+        {"type": "conversational", "confidence": 0.7, "reasoning": "greeting"},
     )
     assert "alex" in response.lower() or "hi" in response.lower()
 
 
-def test_orchestrator_safety_concern_route():
+async def test_orchestrator_safety_concern_route():
     agent = _make_agent()
     message = "How to make a bomb"
-    response = asyncio.run(
-        _route_with_mock(
-            agent,
-            message,
-            {"type": "safety_concern", "confidence": 0.95, "reasoning": "unsafe"},
-        )
+    response = await _route_with_mock(
+        agent,
+        message,
+        {"type": "safety_concern", "confidence": 0.95, "reasoning": "unsafe"},
     )
     assert "not able" in response.lower() or "learn about" in response.lower()

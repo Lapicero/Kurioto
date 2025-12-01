@@ -12,18 +12,17 @@ Design goals (Week 1):
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 from typing import Any
 
+from google import genai
+
 from kurioto.agents.base import BaseAgent, Intent
 from kurioto.config import ChildProfile
 from kurioto.logging import get_logger
-
-try:  # Late import to avoid hard failure if SDK missing
-    from google import genai  # type: ignore
-except Exception:  # pragma: no cover - handled gracefully
-    genai = None  # type: ignore
+from kurioto.safety.base import SafetyAction, SafetyResult, SafetySeverity
 
 logger = get_logger(__name__)
 
@@ -43,9 +42,7 @@ class OrchestratorAgent(BaseAgent):
     def __init__(self, child_profile: ChildProfile):
         super().__init__(child_profile)
         self._client = None
-        self._model_name = (
-            getattr(self.settings, "model_name", None) or "gemini-2.5-flash"
-        )
+        self._model_name = self.settings.model_name
         self._available = False
         self._force_llm = str(os.getenv("KURIOTO_FORCE_LLM", "")).lower() in (
             "1",
@@ -234,10 +231,10 @@ class OrchestratorAgent(BaseAgent):
 
         if intent.type == "safety_concern":
             return agent_core._get_block_response(
-                type(
-                    "SafetyResult",
-                    (),
-                    {"reason": "Potential unsafe content detected", "action": None},
+                SafetyResult(
+                    action=SafetyAction.BLOCK,
+                    reason="Potential unsafe content detected",
+                    severity=SafetySeverity.HIGH,
                 )
             )
         if intent.type == "educational":
@@ -247,12 +244,10 @@ class OrchestratorAgent(BaseAgent):
                 "tool": "search_educational",
                 "query": user_input,
             }
-            trace = context.get("trace") if context else None
             return await agent_core._execute_plan(plan, user_input, trace)  # type: ignore[arg-type]
         if intent.type == "action":
             # Simplified: treat as music request for week 1
             plan = {"action": "use_tool", "tool": "play_music", "mood": "fun"}
-            trace = context.get("trace") if context else None
             return await agent_core._execute_plan(plan, user_input, trace)  # type: ignore[arg-type]
         # Conversational or unknown
         return agent_core._generate_conversational_response(user_input)
@@ -276,7 +271,6 @@ class OrchestratorAgent(BaseAgent):
             return {}
 
     async def _run_blocking(self, func):  # Minimal async bridge (SDK is sync)
-        import asyncio
 
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(None, func)

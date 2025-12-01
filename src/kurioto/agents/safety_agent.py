@@ -124,9 +124,7 @@ class SafetyAgent(BaseAgent):
     def __init__(self, child_profile: ChildProfile):
         super().__init__(child_profile)
         self._client = None
-        self._model_name = (
-            getattr(self.settings, "model_name", None) or "gemini-2.0-flash"
-        )
+        self._model_name = self.settings.model_name
         self._available = False
 
         # Wrap existing multi-layer safety evaluator
