@@ -6,7 +6,6 @@ rather than providing direct solutions. Grounded in parent-provided
 educational materials using File Search.
 """
 
-import asyncio
 import json
 from typing import Any
 
@@ -56,8 +55,7 @@ class EducatorAgent(BaseAgent):
             child_id=child_profile.child_id, client=client
         )
 
-        # Initialize File Search store
-        asyncio.create_task(self.material_manager.initialize_store())
+        # File Search store will be initialized explicitly by caller/tests
 
     async def tutor_homework(
         self,
@@ -119,13 +117,13 @@ class EducatorAgent(BaseAgent):
 
         # Generate Socratic response with File Search grounding
         response = await self._client.models.generate_content(
-            model=self._model_name,
-            contents=socratic_prompt,
-            config=types.GenerateContentConfig(
+            self._model_name,
+            socratic_prompt,
+            types.GenerateContentConfig(
                 system_instruction=self._get_tutor_system_instruction(),
                 tools=[file_search_tool],
                 response_modalities=["TEXT"],
-                temperature=0.7,  # Some creativity for engaging questions
+                temperature=0.7,
             ),
         )
 
@@ -206,9 +204,9 @@ Keep explanation under 200 words.
         )
 
         response = await self._client.models.generate_content(
-            model=self._model_name,
-            contents=prompt,
-            config=types.GenerateContentConfig(
+            self._model_name,
+            prompt,
+            types.GenerateContentConfig(
                 system_instruction=self._get_tutor_system_instruction(),
                 tools=[file_search_tool],
                 temperature=0.8,

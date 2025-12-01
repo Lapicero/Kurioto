@@ -205,13 +205,16 @@ class MemoryManager:
         """
         session_id = str(uuid4())[:12]
 
-        session = {
-            "session_id": session_id,
-            "timestamp": datetime.now(),
-            "session_type": "education",
-            "child_id": self.child_id,
-            **session_data,
-        }
+        # Merge provided data but enforce required fields (do not allow overrides)
+        session = {**session_data}
+        session.update(
+            {
+                "session_id": session_id,
+                "timestamp": datetime.now(),
+                "session_type": "education",
+                "child_id": self.child_id,
+            }
+        )
 
         self._education_sessions.append(session)
 

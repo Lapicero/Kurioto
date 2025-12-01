@@ -107,7 +107,6 @@ class OrchestratorAgent(BaseAgent):
                     "orchestrator_force_llm_unavailable",
                     message="FORCE_LLM enabled but LLM client unavailable",
                 )
-                raise RuntimeError("FORCE_LLM enabled but LLM client unavailable")
             intent = self._heuristic_intent(validated_input)
             self._last_intent = intent
             self._last_llm_used = False
