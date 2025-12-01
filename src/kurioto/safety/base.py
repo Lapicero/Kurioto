@@ -67,10 +67,6 @@ class SafetyResult:
     raw_scores: dict[str, float] = field(default_factory=dict)  # Raw API scores
     metadata: dict[str, Any] = field(default_factory=dict)
 
-    def to_legacy_severity(self) -> str:
-        """Convert to legacy string severity for backwards compatibility."""
-        return self.severity.value
-
 
 @runtime_checkable
 class SafetyClassifier(Protocol):

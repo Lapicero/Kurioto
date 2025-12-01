@@ -82,7 +82,7 @@ class GeminiSafetyClassifier(BaseSafetyClassifier):
     def __init__(
         self,
         api_key: str | None = None,
-        model_name: str = "gemini-2.0-flash",
+        model_name: str | None = None,
         fail_safe: bool = True,
     ):
         """
@@ -96,7 +96,7 @@ class GeminiSafetyClassifier(BaseSafetyClassifier):
         super().__init__(fail_safe=fail_safe)
         settings = get_settings()
         self._api_key = api_key or settings.google_api_key
-        self._model_name = model_name
+        self._model_name = model_name or settings.model_name
         self._client = None
 
     @property

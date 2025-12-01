@@ -25,7 +25,7 @@ from kurioto.safety.classifiers import (
     PerspectiveAPIClassifier,
     RegexSafetyClassifier,
 )
-from kurioto.safety.evaluator import SafetyEvaluator, create_safety_evaluator
+from kurioto.safety.evaluator import SafetyEvaluator
 from kurioto.safety.multi_layer import MultiLayerResult, MultiLayerSafetyEvaluator
 from kurioto.safety.review_queue import (
     HumanReviewQueue,
@@ -52,7 +52,6 @@ __all__ = [
     "MultiLayerResult",
     "MultiLayerSafetyEvaluator",
     "SafetyEvaluator",
-    "create_safety_evaluator",
     # Review queue
     "HumanReviewQueue",
     "ReviewPriority",
