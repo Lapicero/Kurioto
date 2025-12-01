@@ -63,6 +63,7 @@ class MemoryManager:
         self._episodic: list[ConversationTurn] = []
         self._semantic: list[MemoryEntry] = []
         self._safety_events: list[MemoryEntry] = []
+        self._education_sessions: list[dict[str, Any]] = []
 
         logger.info("memory_manager_init", child_id=child_id)
 
@@ -190,6 +191,80 @@ class MemoryManager:
             return [e for e in self._safety_events if severity in e.tags]
         return self._safety_events.copy()
 
+    # === Education Sessions (for parent dashboard) ===
+
+    def log_education_session(self, session_data: dict[str, Any]) -> str:
+        """
+        Log a tutoring session for parent dashboard.
+
+        Args:
+            session_data: dict with response, citations, parent_summary, etc.
+
+        Returns:
+            session_id for reference
+        """
+        session_id = str(uuid4())[:12]
+
+        session = {
+            "session_id": session_id,
+            "timestamp": datetime.now(),
+            "session_type": "education",
+            "child_id": self.child_id,
+            **session_data,
+        }
+
+        self._education_sessions.append(session)
+
+        logger.info(
+            "logged_education_session",
+            child_id=self.child_id,
+            session_id=session_id,
+            subject=session_data.get("subject"),
+        )
+
+        return session_id
+
+    async def get_sessions(
+        self,
+        child_id: str,
+        start_time: datetime | None = None,
+        session_type: str = "education",
+    ) -> list[dict[str, Any]]:
+        """
+        Get sessions filtered by criteria.
+
+        Args:
+            child_id: Child identifier
+            start_time: Optional filter for sessions after this time
+            session_type: Type of sessions to retrieve
+
+        Returns:
+            List of session dicts
+        """
+        sessions = [
+            s
+            for s in self._education_sessions
+            if s.get("child_id") == child_id and s.get("session_type") == session_type
+        ]
+
+        # Filter by time if provided
+        if start_time:
+            sessions = [
+                s for s in sessions if s.get("timestamp", datetime.min) >= start_time
+            ]
+
+        # Sort by timestamp (newest first)
+        sessions.sort(key=lambda s: s.get("timestamp", datetime.min), reverse=True)
+
+        return sessions
+
+    async def get_session(self, session_id: str) -> dict[str, Any] | None:
+        """Get a specific session by ID."""
+        for session in self._education_sessions:
+            if session.get("session_id") == session_id:
+                return session
+        return None
+
     # === State Export/Import (for ADK session integration) ===
 
     def export_state(self) -> dict[str, Any]:
@@ -199,6 +274,7 @@ class MemoryManager:
             "episodic": [t.model_dump(mode="json") for t in self._episodic],
             "semantic": [e.model_dump(mode="json") for e in self._semantic],
             "safety_events": [e.model_dump(mode="json") for e in self._safety_events],
+            "education_sessions": self._education_sessions,
         }
 
     def import_state(self, state: dict[str, Any]) -> None:
@@ -209,10 +285,13 @@ class MemoryManager:
             self._semantic = [MemoryEntry(**e) for e in state["semantic"]]
         if "safety_events" in state:
             self._safety_events = [MemoryEntry(**e) for e in state["safety_events"]]
+        if "education_sessions" in state:
+            self._education_sessions = state["education_sessions"]
 
         logger.info(
             "memory_import_state",
             child_id=self.child_id,
             episodic_count=len(self._episodic),
             semantic_count=len(self._semantic),
+            education_sessions=len(self._education_sessions),
         )

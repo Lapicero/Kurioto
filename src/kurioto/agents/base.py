@@ -21,12 +21,17 @@ logger = get_logger(__name__)
 class Intent:
     """Parsed intent produced by the orchestrator's classification step."""
 
-    type: str  # educational | conversational | action | safety_concern | unknown
+    type: str  # educational_homework | educational_concept | conversational | action | safety_concern | unknown
     confidence: float = 0.0
+    subject: str | None = None  # math | science | english | history | other
     reasoning: str | None = None
 
     def is_confident(self, threshold: float = 0.5) -> bool:
         return self.confidence >= threshold and self.type not in {"unknown"}
+
+    def is_educational(self) -> bool:
+        """Check if intent is educational (homework or concept)."""
+        return self.type in {"educational_homework", "educational_concept"}
 
 
 @runtime_checkable

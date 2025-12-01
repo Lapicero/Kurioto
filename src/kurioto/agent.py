@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from kurioto.agents.base import Intent
+from kurioto.agents.educator import EducatorAgent
 from kurioto.agents.orchestrator_agent import OrchestratorAgent
 from kurioto.agents.safety_agent import SafetyAgent
 from kurioto.config import ChildProfile, Settings, get_settings
@@ -61,6 +63,17 @@ class KuriotoAgent:
 
         # Week 1 addition: orchestrator for intent classification & routing
         self.orchestrator = OrchestratorAgent(child_profile)
+
+        # Week 3 addition: educator agent for Socratic tutoring
+        # Initialize Gemini client for educator components
+        from google import genai as genai_module
+
+        genai_client = genai_module.Client(api_key=self.settings.google_api_key)
+
+        self.educator = EducatorAgent(
+            child_profile=child_profile,
+            client=genai_client,
+        )
 
         # Initialize tools
         self.tools = {
@@ -201,6 +214,109 @@ class KuriotoAgent:
 
         # Conversational response (no tool needed)
         return self._generate_conversational_response(user_input)
+
+    async def _handle_educational(
+        self,
+        intent: Intent,
+        user_input: str,
+        trace: TraceContext | None,
+    ) -> str:
+        """
+        Handle educational requests via EducatorAgent.
+
+        Routes to appropriate educator method based on intent type:
+        - educational_homework: Socratic tutoring (no direct answers)
+        - educational_concept: Age-appropriate explanations
+
+        Args:
+            intent: Classified intent with type and subject
+            user_input: Child's question
+            trace: Trace context for logging
+
+        Returns:
+            Educational response (guiding questions or explanation)
+        """
+        try:
+            if intent.type == "educational_homework":
+                # Use Socratic method - guide to answer through questions
+                result = await self.educator.tutor_homework(
+                    question=user_input,
+                    subject=intent.subject,
+                )
+
+                # Log session for parent dashboard
+                session_data = {
+                    "child_id": self.child_profile.child_id,
+                    "session_type": "homework_help",
+                    "subject": intent.subject or "general",
+                    "question": user_input[:200],  # Truncate for storage
+                    "response": result["response"][:200],
+                    "citations": result.get("citations", []),
+                    "parent_summary": result.get("parent_summary", {}),
+                    "timestamp": None,  # Will be set by memory manager
+                }
+                session_id = self.memory.log_education_session(session_data)
+
+                if trace:
+                    trace.log_event(
+                        "educational_session",
+                        data={
+                            "type": "homework",
+                            "subject": intent.subject,
+                            "session_id": session_id,
+                            "has_citations": len(result.get("citations", [])) > 0,
+                        },
+                    )
+
+                return result["response"]
+
+            elif intent.type == "educational_concept":
+                # Explain concept with age-appropriate language
+                response = await self.educator.explain_concept(
+                    concept=user_input,
+                    subject=intent.subject,
+                )
+
+                # Log session (explain_concept returns string, not dict)
+                session_data = {
+                    "child_id": self.child_profile.child_id,
+                    "session_type": "concept_explanation",
+                    "subject": intent.subject or "general",
+                    "question": user_input[:200],
+                    "response": response[:200],
+                    "citations": [],  # explain_concept doesn't return citations separately
+                    "parent_summary": {},
+                    "timestamp": None,
+                }
+                session_id = self.memory.log_education_session(session_data)
+
+                if trace:
+                    trace.log_event(
+                        "educational_session",
+                        data={
+                            "type": "concept",
+                            "subject": intent.subject,
+                            "session_id": session_id,
+                        },
+                    )
+
+                return response
+            else:
+                # Fallback for unexpected educational intent
+                logger.warning(
+                    "unexpected_educational_intent",
+                    intent_type=intent.type,
+                )
+                return self._generate_conversational_response(user_input)
+
+        except Exception as e:
+            logger.error(
+                "educational_handler_error",
+                error=str(e),
+                intent_type=intent.type,
+            )
+            # Graceful fallback
+            return self._get_error_response()
 
     def _format_tool_response(self, tool_name: str, data: Any) -> str:
         """Format tool results into a child-friendly response."""
