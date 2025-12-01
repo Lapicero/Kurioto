@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from kurioto.agents.orchestrator import OrchestratorAgent
+from kurioto.agents.orchestrator_agent import OrchestratorAgent
 from kurioto.agents.safety_agent import SafetyAgent
 from kurioto.config import ChildProfile, Settings, get_settings
 from kurioto.logging import TraceContext, get_logger

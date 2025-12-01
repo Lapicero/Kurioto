@@ -38,7 +38,18 @@ _INTENT_SYSTEM_INSTRUCTIONS = (
 
 
 class OrchestratorAgent(BaseAgent):
+    """Agent for classifying user intent and routing to appropriate handlers.
+
+    Routes child messages to educational, conversational, action, or safety responses
+    using LLM-based classification with heuristic fallback.
+    """
+
     def __init__(self, child_profile: ChildProfile):
+        """Initialize the orchestrator agent.
+
+        Args:
+            child_profile: Profile of the child user for age-appropriate routing
+        """
         super().__init__(child_profile)
         self._client = None
         self._model_name = self.settings.model_name

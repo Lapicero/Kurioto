@@ -98,6 +98,14 @@ class ParentAlert:
         follow_up_recommended: bool = False,
         urgency: str = "low",
     ):
+        """Initialize a parent alert.
+
+        Args:
+            subject: Brief subject line for the alert
+            message: Detailed explanation of the safety incident (2-3 sentences)
+            follow_up_recommended: Whether parent should follow up with the child
+            urgency: Alert urgency level ("low", "medium", or "high")
+        """
         self.subject = subject
         self.message = message
         self.follow_up_recommended = follow_up_recommended
@@ -121,6 +129,11 @@ class SafetyAgent(BaseAgent):
     """
 
     def __init__(self, child_profile: ChildProfile):
+        """Initialize the safety agent.
+
+        Args:
+            child_profile: Profile of the child user for age-appropriate safety checks
+        """
         super().__init__(child_profile)
         self._client = None
         self._model_name = self.settings.model_name
@@ -264,7 +277,9 @@ class SafetyAgent(BaseAgent):
 
         Args:
             content: Text to verify
-            is_input: Whether this is user input (vs agent output)
+            is_input: Whether this is user input (vs agent output). Currently unused,
+                reserved for future differentiation between input/output verification
+                strategies (e.g., stricter checks for user input vs generated output).
 
         Returns:
             SafetyResult from LLM analysis
