@@ -1,7 +1,7 @@
 <p align="center">
   <a href="https://kurioto.com">
     <picture>
-      <source srcset="./public/kurioto-banner.webp" type="image/webp">
+      <source srcset="./public/kurioto-banner.png" type="image/png">
       <img src="./public/kurioto-banner.png" alt="Kurioto Banner" width="800">
     </picture>
   </a>

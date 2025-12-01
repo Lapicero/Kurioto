@@ -7,6 +7,7 @@ for filtering by subject, grade level, and material type.
 """
 
 import asyncio
+import time
 from pathlib import Path
 from typing import Any
 
@@ -159,10 +160,32 @@ class EducationalMaterialManager:
             },
         )
 
-        # Wait for processing to complete
-        while not operation.done:
-            await asyncio.sleep(2)
+        # Wait for processing to complete with timeout and failure checks
+        poll_interval = 2
+        max_wait_seconds = 300
+        deadline = time.monotonic() + max_wait_seconds
+        while not getattr(operation, "done", False):
+            if time.monotonic() >= deadline:
+                logger.error(
+                    "upload_timeout",
+                    child_id=self.child_id,
+                    file_name=file_path.name,
+                    seconds=max_wait_seconds,
+                )
+                raise TimeoutError(
+                    f"File Search import timed out after {max_wait_seconds}s: {file_path.name}"
+                )
+            await asyncio.sleep(poll_interval)
             operation = self.client.operations.get(operation)
+            op_error = getattr(operation, "error", None)
+            if op_error:
+                logger.error(
+                    "upload_failed",
+                    child_id=self.child_id,
+                    file_name=file_path.name,
+                    error=str(op_error),
+                )
+                raise RuntimeError(f"Upload failed: {op_error}")
 
         logger.info(
             "uploaded_textbook",
@@ -226,10 +249,32 @@ class EducationalMaterialManager:
             },
         )
 
-        # Wait for processing
-        while not operation.done:
-            await asyncio.sleep(2)
+        # Wait for processing with timeout and failure checks
+        poll_interval = 2
+        max_wait_seconds = 300
+        deadline = time.monotonic() + max_wait_seconds
+        while not getattr(operation, "done", False):
+            if time.monotonic() >= deadline:
+                logger.error(
+                    "upload_timeout",
+                    child_id=self.child_id,
+                    file_name=file_path.name,
+                    seconds=max_wait_seconds,
+                )
+                raise TimeoutError(
+                    f"File Search import timed out after {max_wait_seconds}s: {file_path.name}"
+                )
+            await asyncio.sleep(poll_interval)
             operation = self.client.operations.get(operation)
+            op_error = getattr(operation, "error", None)
+            if op_error:
+                logger.error(
+                    "upload_failed",
+                    child_id=self.child_id,
+                    file_name=file_path.name,
+                    error=str(op_error),
+                )
+                raise RuntimeError(f"Upload failed: {op_error}")
 
         logger.info(
             "uploaded_homework",
@@ -285,10 +330,32 @@ class EducationalMaterialManager:
             },
         )
 
-        # Wait for processing
-        while not operation.done:
-            await asyncio.sleep(2)
+        # Wait for processing with timeout and failure checks
+        poll_interval = 2
+        max_wait_seconds = 300
+        deadline = time.monotonic() + max_wait_seconds
+        while not getattr(operation, "done", False):
+            if time.monotonic() >= deadline:
+                logger.error(
+                    "upload_timeout",
+                    child_id=self.child_id,
+                    file_name=file_path.name,
+                    seconds=max_wait_seconds,
+                )
+                raise TimeoutError(
+                    f"File Search import timed out after {max_wait_seconds}s: {file_path.name}"
+                )
+            await asyncio.sleep(poll_interval)
             operation = self.client.operations.get(operation)
+            op_error = getattr(operation, "error", None)
+            if op_error:
+                logger.error(
+                    "upload_failed",
+                    child_id=self.child_id,
+                    file_name=file_path.name,
+                    error=str(op_error),
+                )
+                raise RuntimeError(f"Upload failed: {op_error}")
 
         logger.info(
             "uploaded_study_guide",
