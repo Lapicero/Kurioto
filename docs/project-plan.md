@@ -6,10 +6,10 @@ Children are growing up surrounded by digital content, yet current AI-assistants
 
 As a result, children are exposed to:
 
-- Inconsistent, unsafe or inappropriate content
-- Noisy or confusing conversational behavior
-- Zero awareness of environment or emotional context
-- Tools and APIs that operate without parental oversight
+* Inconsistent, unsafe or inappropriate content
+* Noisy or confusing conversational behavior
+* Zero awareness of environment or emotional context
+* Tools and APIs that operate without parental oversight
 
 At the same time, parents have little visibility into how their kids use digital tools, what content they access, or whether risky behavioral patterns emerge.
 
@@ -27,7 +27,7 @@ Agents are the right solution because they provide:
 
 ### **1. Multi-Step Reasoning**
 
-Children’s questions often require planning, tool use, explanation simplification, and safety evaluation. An agent planner can break tasks into steps: interpret, check safety, retrieve knowledge, adapt to age, and respond.
+Children’s questions often require planning, tool use, explanation simplification, and safety evaluation. Our orchestrator plans steps: interpret → check safety → retrieve knowledge → adapt to age → respond.
 
 ### **2. Tool Integration**
 
@@ -35,7 +35,7 @@ To be genuinely useful, the system must access educational corpora, music servic
 
 ### **3. Memory**
 
-Children benefit from continuity. Agents can maintain memories of preferences, learning progress, safety events, and conversation themes. Hence creating long-term engagement, and enhancing product personalization.
+Children benefit from continuity. Agents can maintain memories of preferences, learning progress, safety events, and conversation themes. This creates long-term engagement and enhances personalization.
 
 ### **4. Multi-Modal Context Awareness**
 
@@ -53,125 +53,105 @@ These capabilities make the agent paradigm ideal for a child-focused AI system. 
 
 ---
 
-## **What You Created (Architecture Overview)**
+## **What We Built (Architecture Overview)**
 
-The capstone prototype implements the cloud software logic of Kurioto. Although the final product will run on a handheld device, the submission focuses on the **cloud-based agent** that powers the experience.
-
-### **High-Level Architecture**
-
-```
-User Input (voice/image/sensor)
-        ↓
-Input Interpreter (STT, image captioning mock, metadata builder)
-        ↓
-Agent Core
-  ├─ Planner (multi-step reasoning)
-  ├─ Memory Manager (episodic + semantic)
-  ├─ Safety Evaluator (block/rewrite/warn)
-  ├─ Age Adapter (adjust tone and complexity)
-  └─ Tool Router
-        ├─ Search Tool (child-safe educational corpus)
-        ├─ Spotify Tool (mock)
-        ├─ Parent Dashboard Tool
-        ├─ Image/Audio Safety Tool
-        └─ Environment Context Tool
-        ↓
-Response Generator (text → simplified → TTS-ready)
-        ↓
-Device Output (voice + optional screen text)
-```
+The current implementation focuses on the **cloud-based agent** that powers the experience, with a production-ready educational workflow, parent oversight, and a secure HTTP API.
 
 ### **Core Components**
 
-1. **Planner**
+1. **Orchestrator**
+   * Classifies intent (education vs. other) and routes requests.
+   * Heuristic fallback even when LLM is forced but unavailable, ensuring resiliency.
 
-   - Produces step-by-step plans (e.g., “check safety → call tool → adapt answer”).
+2. **EducationalMaterialManager**
+   * Manages per-child Google Gemini File Search stores.
+   * Uploads textbooks, homework, and study guides with metadata filters.
+   * Provides a File Search tool to ground tutoring in the child’s own materials.
+   * Bounded polling with timeouts and error detection for upload operations.
 
-2. **Memory Manager**
+3. **EducatorAgent**
+   * Socratic tutoring and concept explanations grounded in uploaded materials.
+   * Provides citations and produces a parent-facing summary of each session.
 
-   - Episodic: recent conversation
-   - Semantic: child preferences, profile, safety flags
+4. **ParentDashboard**
+   * Async summaries, progress trends, and concerns/alerts for parents.
+   * Enables lightweight oversight without exposing child content unnecessarily.
 
-3. **Safety Evaluator**
+5. **MemoryManager**
+   * Persists education session logs and supports retrieval/export.
 
-   - Filters harmful topics
-   - Applies refusal patterns
-   - Ensures content fits developmental level
+6. **Safety Layer**
+   * Filters harmful topics and maintains age-appropriate responses.
 
-4. **Age Adapter**
-
-   - Simplifies vocabulary
-   - Adjusts tone, sentence length, and metaphor style
-
-5. **Tool Layer**
-
-   - SearchTool: queries curated educational knowledge
-   - SpotifyTool mock: music suggestions and controls
-   - ParentDashboardTool: usage logs, location, settings
-   - SafetyTool: checks for image/audio risk
-   - ImageUnderstandingTool: simple captioning mock
-
-6. **Output Layer**
-
-   - Generates child-friendly explanations
-   - Prepares for TTS (voice output on device)
+7. **API Layer (FastAPI)**
+   * Endpoints for parent dashboard (summary, progress, concerns) and uploads.
+   * Parent-only access via bearer token; naive in-memory rate limiting.
+   * Dependency injection for the material manager to simplify testing.
 
 ---
 
-## **Demo**
+## **APIs**
 
-### **Demo 1: Educational Question**
+FastAPI exposes a small, secure API surface optimized for parent oversight and educational uploads.
+
+* Dashboard: `GET /education/dashboard/summary`, `GET /education/dashboard/progress`, `GET /education/dashboard/concerns` (query by `child_id`).
+* Uploads: `POST /education/uploads/...` for textbooks, homework, and study guides.
+* Auth: Bearer token for parent-only access. Requests without or with invalid tokens are rejected.
+* Rate limiting: Basic in-memory limiter to prevent abuse and accidental overload.
+* Testability: Material manager is provided via dependency injection for isolated integration tests.
+
+Refer to the project README “API Quickstart” for usage examples and curl commands.
+
+---
+
+## **Safety & Age Adaptation**
+
+* Safety checks run before model output to block harmful content and redirect gently.
+* The educator adapts tone, vocabulary, and explanation style to the child’s age.
+* Parent oversight is built-in through summaries, progress, and concerns surfaced via the dashboard.
+
+---
+
+## **Demos**
+
+### **Demo 1: Grounded Educational Question**
 
 **Child:** “Why do leaves fall in autumn?”
-**Agent Actions:**
 
-1. Planner analyzes question
-2. SafetyEvaluator confirms topic is safe
-3. SearchTool retrieves child-friendly explanation
-4. AgeAdapter simplifies language
-5. Logs event for parents
+**Agent Actions:**
+1. Orchestrator routes to education.
+2. Safety layer confirms topic is safe.
+3. EducationalMaterialManager provides a File Search tool for the child’s materials.
+4. EducatorAgent uses Socratic prompts grounded in those materials; includes citations.
+5. MemoryManager logs the session; ParentDashboard receives a summary.
 
 **Agent Response:**
 “Trees drop their leaves to rest for winter, kind of like bedtime for plants! When spring comes, they wake up and grow new leaves.”
 
----
+### **Demo 2: Homework Tutoring With Citations**
 
-### **Demo 2: Music Request**
+**Child:** “Can you help me with problem 3?”
 
-**Child:** “Play something fun!”
 **Agent Actions:**
+1. Homework file is already uploaded and indexed.
+2. EducatorAgent guides with hints, avoids giving away answers.
+3. Citations reference the relevant page/section of the uploaded material.
+4. Parent summary records difficulty areas and suggested practice.
 
-1. Planner detects action request
-2. SettingsTool verifies music is allowed
-3. SpotifyTool mock selects from a pre-approved playlist
-4. Memory updates preference
-5. Event logged for parents
-
-**Agent Response:**
-“Here’s a fun song you might like!”
-
----
-
-### **Demo 3: Multi-Modal Safety**
+### **Demo 3: Multi-Modal Safety (Image)**
 
 **Child sends a picture.**
-The agent:
+* Image safety check runs first.
+* If safe, the agent describes it in age-appropriate wording; if unsafe, it refuses and alerts parents.
 
-- Runs ImageSafetyTool
-- Identifies objects in the image (mock captioning)
-- If unsafe, refuses and alerts parent
-- If safe, describes image in child-appropriate wording
-
----
-
-### **Demo 4: Risk Behavior**
+### **Demo 4: Risk Behavior Redirect**
 
 **Child:** “How do I make a bomb?”
-**Agent Actions:**
 
-1. SafetyEvaluator blocks the request
-2. ParentDashboardTool logs red-flag alert
-3. AgeAdapter creates a gentle redirect
+**Agent Actions:**
+1. Safety layer blocks the request.
+2. ParentDashboard logs a red-flag alert.
+3. Educator provides a gentle redirect to safe, educational content.
 
 **Agent Response:**
 “I can’t help with that because it’s dangerous. But I can tell you how fireworks create bright colors!”
@@ -180,59 +160,73 @@ The agent:
 
 ## **The Build (How It Was Created)**
 
-The project was built as a **modular agent framework** inside a Kaggle Notebook.
+The project is a modular agent framework implemented in Python with a FastAPI service and integration to Google Gemini for generation and File Search grounding.
 
 ### **Technologies and Components**
 
-- **Python** for all logic
-- **OpenAI-style agentic loop** (planner + router + tools)
-- **Custom Memory Manager** (JSON-backed dictionary store)
-- **SafetyEvaluator** based on rule sets and classifier mocks
-- **Image and audio mock processors** for multi-modal input
-- **Spotify API simulation** for tool use demonstration
-- **Parent Settings Dashboard Simulation** with logging and retrieval
-- **Age adaptation module** using templates + grade-level simplification
-- **Traceability logging** to simulate guardian-facing analytics
+* **Python** for core logic.
+* **FastAPI** for the HTTP API and dependency injection.
+* **Google Gemini** client and **File Search** for grounded responses.
+* **Pytest** and **pytest-asyncio** for unit and integration tests.
+* **Structured logging** to support parent oversight and debugging.
 
 ### **Key Design Priorities**
 
-- Safety-first architecture
-- Predictable tool routing
-- Clear separation of parent and child roles
-- Consistent reasoning trace for evaluation
-- Extensibility for physical device integration
-
-Everything is built to maximize clarity, readability, and AI agents best-practices, including multi-step reasoning, multi-modal support, memory, tool usage, and safety.
+* Safety-first architecture with parent oversight as a first-class concern.
+* Predictable routing via the Orchestrator, with graceful degradation.
+* Grounded educational help with per-child materials and citations.
+* Testability via fakes and dependency injection.
+* Operational robustness: timeouts and explicit error handling for uploads.
 
 ---
 
-## **If I Had More Time, This Is What I'd Do**
+## **Testing & Quality**
 
-1. **Implement a real speech pipeline**
-   Integrate high-quality STT and TTS with child-friendly voices.
+* Unit tests cover material management, educator behavior, parent dashboard, and orchestration.
+* Integration tests cover API endpoints, auth, rate limiting, and upload flows (with DI-based fakes).
+* Async discipline: tests await dashboard methods to avoid hidden coroutines.
+* Linting and type hygiene: strict typing, attribute guards, and line-length compliance.
 
-2. **Enhance multi-modal understanding**
-   Add real image models for captioning, OCR, and content filtering.
+---
 
-3. **Develop a mobile guardian app**
-   For live notifications, location tracking, content rules, and settings.
+## **Recent Additions**
 
-4. **Build a curriculum-aware learning engine**
-   Track educational progress and adjust difficulty over time.
+* Per-child File Search stores and filters; tool construction for grounding.
+* Socratic EducatorAgent with citations and parent summaries.
+* ParentDashboard with summaries, progress trends, and concerns.
+* FastAPI endpoints with parent-only auth, naive rate limiting, and DI.
+* Robust upload polling loops with timeouts and operation error detection.
+* README “API Quickstart” with endpoints, headers, and examples.
 
-5. **Fine-tune a dedicated child-safe LLM**
-   Using a curated developmental dataset, with language styles for ages 5–17.
+---
 
-6. **Implement real-time context awareness**
-   Use motion, proximity sensors, and environmental data to adapt behavior.
+## **If We Had More Time (Roadmap)**
 
-7. **Simulate Deployment of a prototype device**
-   Use a android-based smartphone to simulate a future hardware specs (including eSIM connectivity, battery, camera and microphone).
+1. **Production-grade auth & rate limiting**
+   Integrate with an identity provider; move to distributed rate limiting.
 
-8. **Study child–AI interaction patterns**
-   Evaluate long-term engagement, developmental benefits, and safety profiles.
+2. **Speech pipeline**
+   High-quality STT and TTS with child-friendly voices.
 
-9. **Create a parent–child co-learning system**
+3. **Richer multi-modal understanding**
+   Real image models for captioning, OCR, and content filtering.
+
+4. **Curriculum-aware learning engine**
+   Track progress and adapt difficulty over time.
+
+5. **Child-safe model tuning**
+   Fine-tune on developmental datasets with styles for ages 5–17.
+
+6. **Context awareness**
+   Use motion/proximity sensors and environmental data to adapt behavior.
+
+7. **Guardian mobile app**
+   Live notifications, settings, and transparent oversight.
+
+8. **Prototype device simulation**
+   Android-based prototype modeling connectivity, battery, camera, and mic.
+
+9. **Co-learning experiences**
    Joint tasks, quizzes, and storytelling for family collaboration.
 
-Kurioto is designed to become a trusted educational companion. With more time, the project would evolve into a fully operational device backed by a production-ready cloud agent with rich multi-modal intelligence and robust safety governance.
+Kurioto is designed to be a trusted educational companion. The current implementation delivers a grounded, safe, and testable core—ready to evolve into a production-ready cloud agent and future handheld device.

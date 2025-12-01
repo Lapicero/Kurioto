@@ -233,6 +233,69 @@ pip install -e .[dev] -c constraints.txt
 
 ---
 
+## 📡 **API Quickstart**
+
+Kurioto includes FastAPI endpoints for parent-facing features: dashboard summaries, learning progress, and educational material uploads.
+
+### Configuration
+
+Set environment variables in `.env`:
+
+```bash
+GOOGLE_API_KEY=your_gemini_api_key
+PARENT_API_TOKEN=your_secure_token  # Optional; enables auth
+RATE_LIMIT_REQUESTS=60              # Requests per window (default 60)
+RATE_LIMIT_WINDOW_SECONDS=60        # Window in seconds (default 60)
+```
+
+### Running the API
+
+```bash
+# Install uvicorn if not present
+pip install uvicorn
+
+# Start the server
+uvicorn kurioto.app:app --reload
+```
+
+The API will be available at `http://localhost:8000`.
+
+### Endpoints
+
+**Dashboard:**
+- `GET /api/children/{child_id}/dashboard/summary?timeframe=week`
+- `GET /api/children/{child_id}/dashboard/progress?subject=math&days=30`
+- `GET /api/children/{child_id}/dashboard/concerns`
+
+**Material Uploads:**
+- `POST /api/children/{child_id}/materials/textbook` (form: `file`, `subject`, `grade_level`, optional `metadata_json`)
+- `POST /api/children/{child_id}/materials/homework` (form: `file`, `subject`, `assignment_name`, optional `due_date`)
+- `POST /api/children/{child_id}/materials/study_guide` (form: `file`, `subject`, `topic`)
+
+### Authentication
+
+If `PARENT_API_TOKEN` is set, include an `Authorization` header:
+
+```bash
+curl -H "Authorization: Bearer your_secure_token" \
+  http://localhost:8000/api/children/child123/dashboard/summary
+```
+
+### Example Upload
+
+```bash
+curl -X POST \
+  -H "Authorization: Bearer your_secure_token" \
+  -F "file=@math_textbook.pdf" \
+  -F "subject=math" \
+  -F "grade_level=5" \
+  http://localhost:8000/api/children/child123/materials/textbook
+```
+
+Returns `{"operation": "op_xyz"}` with HTTP 202 (Accepted).
+
+---
+
 ## **Work in Progress**
 
 1. **Implement a speech pipeline**

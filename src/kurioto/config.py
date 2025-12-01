@@ -125,6 +125,20 @@ class Settings(BaseModel):
         default=100, description="Maximum memory entries to retain"
     )
 
+    # API auth and rate limiting
+    parent_api_token: str = Field(
+        default_factory=lambda: os.getenv("PARENT_API_TOKEN", ""),
+        description="Bearer token for parent-only API access",
+    )
+    rate_limit_requests: int = Field(
+        default_factory=lambda: int(os.getenv("RATE_LIMIT_REQUESTS", "60")),
+        description="Requests allowed per window",
+    )
+    rate_limit_window_seconds: int = Field(
+        default_factory=lambda: int(os.getenv("RATE_LIMIT_WINDOW_SECONDS", "60")),
+        description="Rate limit window length in seconds",
+    )
+
     @property
     def is_development(self) -> bool:
         """Check if running in development mode."""

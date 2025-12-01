@@ -28,28 +28,18 @@ logger = get_logger(__name__)
 _INTENT_SYSTEM_INSTRUCTIONS = (
     "You classify a child's message for an educational, playful AI companion. "
     "Return ONLY a JSON object without code fences. Categories: \n"
-    "educational: factual / curiosity / learning questions\n"
+    "educational_homework: asking for help with homework or assignments\n"
+    "educational_concept: asking to explain a concept or topic\n"
     "conversational: greetings, feelings, casual talk\n"
     "action: explicit request to play music, start activity, do something\n"
     "safety_concern: dangerous, self-harm, adult, violence, highly inappropriate\n"
     "unknown: anything else or unclear\n\n"
-    "Fields: type, confidence (0-1), reasoning (short)."
+    "Fields: type, confidence (0-1), subject (math|science|english|history|other|null), reasoning (short)."
 )
 
 
 class OrchestratorAgent(BaseAgent):
-    """Agent for classifying user intent and routing to appropriate handlers.
-
-    Routes child messages to educational, conversational, action, or safety responses
-    using LLM-based classification with heuristic fallback.
-    """
-
     def __init__(self, child_profile: ChildProfile):
-        """Initialize the orchestrator agent.
-
-        Args:
-            child_profile: Profile of the child user for age-appropriate routing
-        """
         super().__init__(child_profile)
         self._client = None
         self._model_name = self.settings.model_name
@@ -107,6 +97,7 @@ class OrchestratorAgent(BaseAgent):
                     "orchestrator_force_llm_unavailable",
                     message="FORCE_LLM enabled but LLM client unavailable",
                 )
+                raise RuntimeError("FORCE_LLM enabled but LLM client unavailable")
             intent = self._heuristic_intent(validated_input)
             self._last_intent = intent
             self._last_llm_used = False
@@ -126,15 +117,18 @@ class OrchestratorAgent(BaseAgent):
             response = await self._generate_json(prompt, self._client, self._model_name)
             intent_type = response.get("type", "unknown")
             confidence = float(response.get("confidence", 0.0))
+            subject = response.get("subject")
             reasoning = response.get("reasoning")
             # Basic validation
-            if intent_type not in {
-                "educational",
+            valid_types = {
+                "educational_homework",
+                "educational_concept",
                 "conversational",
                 "action",
                 "safety_concern",
                 "unknown",
-            }:
+            }
+            if intent_type not in valid_types:
                 if self._force_llm:
                     raise ValueError("Invalid intent_type from LLM in FORCE_LLM mode")
                 intent = self._heuristic_intent(validated_input)
@@ -149,7 +143,10 @@ class OrchestratorAgent(BaseAgent):
                 )
                 return intent
             intent = Intent(
-                type=intent_type, confidence=confidence, reasoning=reasoning
+                type=intent_type,
+                confidence=confidence,
+                subject=subject,
+                reasoning=reasoning,
             )
             self._last_intent = intent
             self._last_llm_used = True
@@ -157,6 +154,7 @@ class OrchestratorAgent(BaseAgent):
                 "orchestrator_intent",
                 type=intent.type,
                 confidence=intent.confidence,
+                subject=subject,
                 llm_used=True,
                 available=self._available,
             )
@@ -180,7 +178,14 @@ class OrchestratorAgent(BaseAgent):
 
     def _heuristic_intent(self, user_input: str) -> Intent:
         text = user_input.lower()
-        educational_keywords = [
+        homework_keywords = [
+            "homework",
+            "assignment",
+            "problem",
+            "solve",
+            "help me with",
+        ]
+        concept_keywords = [
             "why",
             "what",
             "how",
@@ -203,11 +208,17 @@ class OrchestratorAgent(BaseAgent):
             return Intent(
                 type="action", confidence=0.7, reasoning="matched action keyword"
             )
-        if any(k in text for k in educational_keywords):
+        if any(k in text for k in homework_keywords):
             return Intent(
-                type="educational",
+                type="educational_homework",
                 confidence=0.6,
-                reasoning="matched educational keyword",
+                reasoning="matched homework keyword",
+            )
+        if any(k in text for k in concept_keywords):
+            return Intent(
+                type="educational_concept",
+                confidence=0.6,
+                reasoning="matched concept keyword",
             )
         greetings = ["hi", "hello", "hey"]
         if any(g == text.strip() or text.startswith(g) for g in greetings):
@@ -258,14 +269,9 @@ class OrchestratorAgent(BaseAgent):
                     severity=SafetySeverity.HIGH,
                 )
             )
-        if intent.type == "educational":
-            # Reuse existing planner logic for educational queries
-            plan = {
-                "action": "use_tool",
-                "tool": "search_educational",
-                "query": user_input,
-            }
-            return await agent_core._execute_plan(plan, user_input, trace)  # type: ignore[arg-type]
+        if intent.is_educational():
+            # Route to EducatorAgent (handled by KuriotoAgent)
+            return await agent_core._handle_educational(intent, user_input, trace)  # type: ignore[arg-type]
         if intent.type == "action":
             # Simplified: treat as music request for week 1
             plan = {"action": "use_tool", "tool": "play_music", "mood": "fun"}
