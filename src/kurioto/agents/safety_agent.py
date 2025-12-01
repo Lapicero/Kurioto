@@ -15,7 +15,6 @@ Design goals (Week 2):
 
 from __future__ import annotations
 
-import asyncio
 import json
 from typing import Any
 
@@ -42,7 +41,7 @@ Analyze this content for safety concerns that might be missed by keyword filters
 Child age: {age}
 Child age group: {age_group}
 
-Content to analyze: "{content}"
+Content to analyze: {content}
 
 Consider:
 1. Subtle inappropriate references or innuendo
@@ -70,7 +69,7 @@ _PARENT_ALERT_PROMPT = """Generate a clear, professional parent alert for this s
 Child: {child_name}, age {age}
 Incident type: {category}
 Severity: {severity}
-User input: "{user_input}"
+User input: {user_input}
 System action: {action}
 
 Create a brief message for parents that:
@@ -184,8 +183,18 @@ class SafetyAgent(BaseAgent):
         Returns:
             SafetyResult with action and reasoning
         """
+        # Validate and truncate input to prevent API issues
+        validated_input = self._validate_and_truncate_input(user_input)
+        if not validated_input:
+            # Empty input is safe
+            return SafetyResult(
+                action=SafetyAction.ALLOW,
+                severity=SafetySeverity.NONE,
+                reason="empty input",
+            )
+
         # Run existing multi-layer check
-        multi_result = await self._multi_layer.evaluate(user_input)
+        multi_result = await self._multi_layer.evaluate(validated_input)
         base_result = multi_result.to_safety_result()
 
         logger.debug(
@@ -206,7 +215,7 @@ class SafetyAgent(BaseAgent):
             SafetyAction.REVIEW,
             SafetyAction.REDIRECT,
         }:
-            llm_result = await self._llm_verify(user_input, is_input=True)
+            llm_result = await self._llm_verify(validated_input, is_input=True)
 
             # LLM can escalate but not de-escalate
             def _sev_rank(s: SafetySeverity) -> int:
@@ -271,11 +280,13 @@ class SafetyAgent(BaseAgent):
         prompt = _SEMANTIC_SAFETY_PROMPT.format(
             age=self.child_profile.age,
             age_group=self.child_profile.age_group.value,
-            content=content,
+            content=json.dumps(content),
         )
 
         try:
-            response_json = await self._generate_json(prompt)
+            response_json = await self._generate_json(
+                prompt, self._client, self._model_name
+            )
 
             is_safe = response_json.get("is_safe", True)
             severity_str = response_json.get("severity", "none")
@@ -340,9 +351,12 @@ class SafetyAgent(BaseAgent):
         Returns:
             ParentAlert with subject, message, and urgency
         """
+        # Truncate input for alert generation (shorter limit for parent messages)
+        truncated_input = self._validate_and_truncate_input(user_input, max_length=200)
+
         if not self.is_available:
             # Fallback to template-based alert
-            return self._generate_template_alert(user_input, safety_result)
+            return self._generate_template_alert(truncated_input, safety_result)
 
         # Derive a primary category string for the alert prompt
         primary_category = (
@@ -350,16 +364,18 @@ class SafetyAgent(BaseAgent):
         )
 
         prompt = _PARENT_ALERT_PROMPT.format(
-            child_name=self.child_profile.name,
+            child_name=json.dumps(self.child_profile.name),
             age=self.child_profile.age,
             category=primary_category,
             severity=safety_result.severity.value,
-            user_input=user_input[:100],  # Truncate long inputs
+            user_input=json.dumps(truncated_input),
             action=safety_result.action.value,
         )
 
         try:
-            response_json = await self._generate_json(prompt)
+            response_json = await self._generate_json(
+                prompt, self._client, self._model_name
+            )
 
             return ParentAlert(
                 subject=response_json.get("subject", "Safety Alert"),
@@ -372,7 +388,7 @@ class SafetyAgent(BaseAgent):
 
         except Exception as e:
             logger.warning("safety_agent_alert_generation_error", error=str(e))
-            return self._generate_template_alert(user_input, safety_result)
+            return self._generate_template_alert(truncated_input, safety_result)
 
     def _generate_template_alert(
         self, user_input: str, safety_result: SafetyResult
@@ -406,29 +422,3 @@ class SafetyAgent(BaseAgent):
             follow_up_recommended=follow_up,
             urgency=urgency,
         )
-
-    async def _generate_json(self, prompt: str) -> dict[str, Any]:
-        """Helper to call Gemini and parse JSON output safely."""
-        client = self._client
-        if client is None:
-            return {}
-
-        response = await self._run_blocking(
-            lambda: client.models.generate_content(
-                model=self._model_name,
-                contents=prompt,
-                config={"response_mime_type": "application/json"},
-            )
-        )
-
-        text = getattr(response, "text", "{}")
-        try:
-            return json.loads(text)
-        except json.JSONDecodeError:
-            logger.warning("safety_agent_json_parse_error", text=text[:100])
-            return {}
-
-    async def _run_blocking(self, func):
-        """Minimal async bridge for sync SDK."""
-        loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(None, func)

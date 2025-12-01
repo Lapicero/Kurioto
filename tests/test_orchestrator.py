@@ -23,7 +23,7 @@ async def _route_with_mock(agent: KuriotoAgent, message: str, mock_json: dict):
     orch._available = True
     orch._client = object()  # Non-None sentinel
 
-    async def _fake_generate_json(prompt: str) -> dict:
+    async def _fake_generate_json(prompt: str, client, model_name: str) -> dict:
         return mock_json
 
     orch._generate_json = _fake_generate_json  # type: ignore[attr-defined]

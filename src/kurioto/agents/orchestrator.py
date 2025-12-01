@@ -12,7 +12,6 @@ Design goals (Week 1):
 
 from __future__ import annotations
 
-import asyncio
 import json
 import os
 from typing import Any
@@ -81,6 +80,16 @@ class OrchestratorAgent(BaseAgent):
 
     async def classify_intent(self, user_input: str) -> Intent:
         """Classify intent using Gemini when available; fallback heuristics otherwise."""
+        # Validate and truncate input to prevent API issues
+        validated_input = self._validate_and_truncate_input(user_input)
+        if not validated_input:
+            # Empty input, return conversational with low confidence
+            return Intent(
+                type="conversational",
+                confidence=0.1,
+                reasoning="empty or invalid input",
+            )
+
         if not self.is_available:
             if self._force_llm:
                 logger.error(
@@ -88,7 +97,7 @@ class OrchestratorAgent(BaseAgent):
                     message="FORCE_LLM enabled but LLM client unavailable",
                 )
                 raise RuntimeError("FORCE_LLM enabled but LLM client unavailable")
-            intent = self._heuristic_intent(user_input)
+            intent = self._heuristic_intent(validated_input)
             self._last_intent = intent
             self._last_llm_used = False
             logger.info(
@@ -100,9 +109,11 @@ class OrchestratorAgent(BaseAgent):
             )
             return intent
 
-        prompt = f"{_INTENT_SYSTEM_INSTRUCTIONS}\nMessage: {json.dumps(user_input)}"
+        prompt = (
+            f"{_INTENT_SYSTEM_INSTRUCTIONS}\nMessage: {json.dumps(validated_input)}"
+        )
         try:
-            response = await self._generate_json(prompt)
+            response = await self._generate_json(prompt, self._client, self._model_name)
             intent_type = response.get("type", "unknown")
             confidence = float(response.get("confidence", 0.0))
             reasoning = response.get("reasoning")
@@ -116,7 +127,7 @@ class OrchestratorAgent(BaseAgent):
             }:
                 if self._force_llm:
                     raise ValueError("Invalid intent_type from LLM in FORCE_LLM mode")
-                intent = self._heuristic_intent(user_input)
+                intent = self._heuristic_intent(validated_input)
                 self._last_intent = intent
                 self._last_llm_used = False
                 logger.info(
@@ -145,7 +156,7 @@ class OrchestratorAgent(BaseAgent):
                 logger.error("orchestrator_intent_error", error=str(e), force_llm=True)
                 raise
             logger.warning("orchestrator_intent_fallback", error=str(e))
-            intent = self._heuristic_intent(user_input)
+            intent = self._heuristic_intent(validated_input)
             self._last_intent = intent
             self._last_llm_used = False
             logger.info(
@@ -251,26 +262,3 @@ class OrchestratorAgent(BaseAgent):
             return await agent_core._execute_plan(plan, user_input, trace)  # type: ignore[arg-type]
         # Conversational or unknown
         return agent_core._generate_conversational_response(user_input)
-
-    async def _generate_json(self, prompt: str) -> dict[str, Any]:
-        """Helper to call Gemini and parse JSON output safely."""
-        client = self._client
-        if client is None:
-            return {}
-        response = await self._run_blocking(
-            lambda: client.models.generate_content(
-                model=self._model_name,
-                contents=prompt,
-                config={"response_mime_type": "application/json"},
-            )
-        )
-        text = getattr(response, "text", "{}")
-        try:
-            return json.loads(text)
-        except json.JSONDecodeError:
-            return {}
-
-    async def _run_blocking(self, func):  # Minimal async bridge (SDK is sync)
-
-        loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(None, func)

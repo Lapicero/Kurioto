@@ -208,3 +208,4 @@ __marimo__/
 
 # ignore pdf files in docs
 docs/*.pdf
+docs/*.md

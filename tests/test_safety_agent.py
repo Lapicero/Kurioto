@@ -48,7 +48,7 @@ async def test_pre_check_escalates_with_llm(monkeypatch):
     # Force LLM available and JSON response indicating escalation
     agent._available = True
 
-    async def fake_generate_json(prompt: str):
+    async def fake_generate_json(prompt: str, client, model_name: str):
         return {
             "is_safe": False,
             "severity": "high",
@@ -87,7 +87,7 @@ async def test_generate_parent_alert_llm(monkeypatch):
     agent = _make_agent()
     agent._available = True
 
-    async def fake_generate_json_alert(prompt: str):
+    async def fake_generate_json_alert(prompt: str, client, model_name: str):
         return {
             "subject": "Alert: Unsafe Request",
             "message": "We blocked a concerning request and logged it.",
